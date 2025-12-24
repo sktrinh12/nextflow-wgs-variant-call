@@ -9,7 +9,7 @@ process APPLY_BQSR {
     path ref_dict
 
     output:
-    tuple val(sample_id), path("shard_${interval.baseName}_bqsr.bam"), path("shard_${interval.baseName}_bqsr.bai")
+    tuple val(sample_id), path("shard_${interval.baseName}_bqsr.bam"), path("shard_${interval.baseName}_bqsr.bai"), path(interval)
 
     script:
     """
