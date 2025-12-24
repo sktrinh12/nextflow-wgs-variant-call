@@ -1,6 +1,5 @@
 process SPLIT_FASTQ {
     tag "$sample_id"
-    publishDir "${params.outdir}/chunks", mode: 'copy'
 
     input:
     tuple val(sample_id), path(read1), path(read2)
