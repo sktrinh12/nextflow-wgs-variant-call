@@ -26,6 +26,8 @@ RUN echo "channels:" > $CONDA_DIR/.condarc && \
 
 # Install bioinformatics tools via bioconda
 RUN conda install -y \
+    openjdk=17 \
+    r-base \
     fastqc samtools bwa gatk4 seqkit awscli && \
     conda clean -afy
 
