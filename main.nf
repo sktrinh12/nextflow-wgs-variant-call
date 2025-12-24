@@ -1,12 +1,7 @@
 nextflow.enable.dsl = 2
 
-// include { SAMTOOLS_FAIDX } from './modules/local/samtool_faidx'
-// include { CREATE_SEQ_DICT } from './modules/local/create_seq_dict'
-// include { FASTQC } from './modules/local/fastqc'
-// include { BWA_INDEX } from './modules/local/bwa_index'
 include { BWA_MEM } from './modules/local/bwa_mem'
 include { SPLIT_FASTQ } from './modules/local/split_fastq'
-include { MERGE_BAM } from './modules/local/merge_bam'
 include { MARK_DUPLICATES } from './modules/local/mark_dups'
 include { MERGE_VCFS } from './modules/local/merge_vcfs'
 include { CREATE_INTERVALS } from './modules/local/create_intervals'
@@ -16,10 +11,7 @@ include { COLLECT_METRICS } from './modules/local/collect_metrics'
 include { HAPLOTYPE_CALLER } from './modules/local/haplotype_caller'
 include { SELECT_VARIANTS } from './modules/local/select_variants'
 
-/*
- * Parameters
- */
-params.samplesheet = "samplesheet.csv"
+params.samplesheet = workflow.profile == 'local' ? "test_samplesheet.csv" : "samplesheet.csv"
 params.ref_dir = "reference"
 params.ref_name = "hg38.fa"
 params.known_sites  = "reference/Homo_sapiens_assembly38.dbsnp138.vcf"
@@ -39,9 +31,6 @@ input_ref_dir           : ${params.ref_dir}
 input_known_sites       : ${known_sites}
 """
 
-/*
- * Channels
- */
 read_pairs = Channel
     .fromPath(samplesheet)
     .splitCsv(header: true)
@@ -54,9 +43,6 @@ read_pairs = Channel
     }
 
 
-/*
- * Workflow
- */
 workflow {
     // split FASTQ files into chunks for sharding
     read_chunks = SPLIT_FASTQ(read_pairs)
@@ -75,45 +61,54 @@ workflow {
     }
 
     // Align each chunk (Spot instances)
-    bam_shards = BWA_MEM(bwa_input.combine(Channel.of(ref_fasta)))
+    input_for_bwa = bwa_input
+        .map { t ->
+            tuple(t[0], t[1], t[2], t[3], file("${params.base_path}/${params.ref_dir}"), params.ref_name)
+        }
 
-    // --- PART 2: MERGE & RECALIBRATION ---
+    bam_shards = input_for_bwa | BWA_MEM
+
+    // MERGE & RECALIBRATION
     // Group all shards back by sample_id for Deduplication
     dedup_ch = MARK_DUPLICATES(bam_shards.groupTuple())
 
     // Generate BQSR table (one task per sample)
     recal_table_ch = BASE_RECALIBRATOR(dedup_ch, ref_fasta, ref_fai, ref_dict, known_sites, known_idx)
 
-    // --- PART 3: VARIANT CALLING SHARDING ---
+    // VARIANT CALLING SHARDING
     // Create the 50-100 intervals for the genome
     interval_ch = CREATE_INTERVALS(ref_dict, ref_fasta, ref_fai).flatten()
 
     bqsr_input = dedup_ch
         .join(recal_table_ch, by: 0)
-        .join(interval_ch, by: 0)
+        .combine(interval_ch)
+
     // This creates 50 small, calibrated BAM shards
-    bqsr_shards = APPLY_BQSR(bqsr_input, ref_fasta, ref_fai, ref_fasta)
+    bqsr_shards = APPLY_BQSR(bqsr_input, ref_fasta, ref_fai, ref_dict)
 
     vcf_shards = HAPLOTYPE_CALLER(
-        bqsr_shards.join(interval_ch, by: 0),
+        bqsr_shards,
         ref_fasta, ref_fai, ref_dict
     )
 
     // Run metrics in the background
     COLLECT_METRICS(dedup_ch, ref_fasta)
+
+    final_vcf = MERGE_VCFS(vcf_shards.groupTuple())
 }
 
 workflow.onComplete {
-    println ( workflow.success ? """
-        Pipeline execution summary
-        ---------------------------
-        Completed at: ${workflow.complete}
-        Duration    : ${workflow.duration}
-        workDir     : ${workflow.workDir}
-        exit status : ${workflow.exitStatus}
-        """ : """
-        Failed: ${workflow.errorReport}
-        exit status : ${workflow.exitStatus}
-        """
+    println ( workflow.success ? \
+"""
+Pipeline execution summary
+---------------------------
+Completed at: ${workflow.complete}
+Duration    : ${workflow.duration}
+workDir     : ${workflow.workDir}
+exit status : ${workflow.exitStatus}
+""" : """
+Failed: ${workflow.errorReport}
+exit status : ${workflow.exitStatus}
+"""
     )
 }
