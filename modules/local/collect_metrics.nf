@@ -12,7 +12,7 @@ process COLLECT_METRICS {
     script:
     """
     gatk CollectAlignmentSummaryMetrics \
-        R=${ref} \
+        R=${ref_fasta} \
         I=${bam} \
         O=alignment_metrics.txt
 
