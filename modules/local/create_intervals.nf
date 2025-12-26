@@ -1,4 +1,4 @@
-// 4. SHARDING: Create Interval Lists (50-100 chunks)
+// SHARDING: Create Interval Lists (50-100 chunks)
 process CREATE_INTERVALS {
     input:
     path ref_dict
