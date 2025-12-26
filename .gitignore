@@ -46,3 +46,5 @@ wave-tests
 x/*
 dag*.html
 trace*
+reads/*
+reference/*
