@@ -9,11 +9,14 @@ process MARK_DUPLICATES {
 
     script:
     """
-    samtools merge -@ ${task.cpus} merged.bam ${bams}
+    samtools merge -@ ${task.cpus} -u merged.unsorted.bam ${bams}
+    samtools sort  -@ ${task.cpus} -o merged.bam merged.unsorted.bam
 
     gatk MarkDuplicatesSpark \
         -I merged.bam \
         -O ${sample_id}_dedup.bam \
         -M ${sample_id}_metrics.txt
+
+    samtools index ${sample_id}_dedup.bam
     """
 }
