@@ -11,25 +11,20 @@ include { COLLECT_METRICS } from './modules/local/collect_metrics'
 include { HAPLOTYPE_CALLER } from './modules/local/haplotype_caller'
 include { SELECT_VARIANTS } from './modules/local/select_variants'
 
-params.samplesheet = workflow.profile == 'local' ? "test_samplesheet.csv" : "samplesheet.csv"
+params.samplesheet = (
+    workflow.profile.contains('local') ||
+    workflow.profile.contains('k8s')
+) ? 'test_samplesheet.csv' : 'samplesheet.csv'
 params.ref_dir = "reference"
 params.ref_name = "hg38.fa"
 params.known_sites  = "reference/Homo_sapiens_assembly38.dbsnp138.vcf"
 
-samplesheet = file("${params.base_path}/${params.samplesheet}")
+samplesheet = file("${params.samplesheet}")
 ref_fasta   = file("${params.base_path}/${params.ref_dir}/${params.ref_name}")
 ref_fai     = file("${params.base_path}/${params.ref_dir}/${params.ref_name}.fai")
 ref_dict    = file("${params.base_path}/${params.ref_dir}/${params.ref_name.replace('.fa', '.dict')}")
 known_sites = file("${params.base_path}/${params.known_sites}")
 known_idx   = file("${params.base_path}/${params.known_sites}.idx")
-
-log.info """
-WGS VARIANT CALLING - N F   P I P E L I N E
-============================================
-input_samplesheet       : ${samplesheet}
-input_ref_dir           : ${params.ref_dir}
-input_known_sites       : ${known_sites}
-"""
 
 read_pairs = Channel
     .fromPath(samplesheet)
@@ -43,7 +38,19 @@ read_pairs = Channel
     }
 
 
+log.info """
+WGS VARIANT CALLING - N F   P I P E L I N E
+============================================
+input_samplesheet       : ${samplesheet}
+input_ref_dir           : ${params.ref_dir}
+input_known_sites       : ${known_sites}
+"""
+
 workflow {
+    // VARIANT CALLING SHARDING
+    // Create the 50-100 intervals for the genome
+    interval_ch = CREATE_INTERVALS(ref_dict, ref_fasta, ref_fai).flatten()
+
     // split FASTQ files into chunks for sharding
     read_chunks = SPLIT_FASTQ(read_pairs)
 
@@ -60,7 +67,7 @@ workflow {
         }
     }
 
-    // Align each chunk (Spot instances)
+    // Align each chunk
     input_for_bwa = bwa_input
         .map { t ->
             tuple(t[0], t[1], t[2], t[3], file("${params.base_path}/${params.ref_dir}"), params.ref_name)
@@ -68,22 +75,19 @@ workflow {
 
     bam_shards = input_for_bwa | BWA_MEM
 
-    // MERGE & RECALIBRATION
     // Group all shards back by sample_id for Deduplication
     dedup_ch = MARK_DUPLICATES(bam_shards.groupTuple())
 
-    // Generate BQSR table (one task per sample)
+    // Generate BQSR table
     recal_table_ch = BASE_RECALIBRATOR(dedup_ch, ref_fasta, ref_fai, ref_dict, known_sites, known_idx)
-
-    // VARIANT CALLING SHARDING
-    // Create the 50-100 intervals for the genome
-    interval_ch = CREATE_INTERVALS(ref_dict, ref_fasta, ref_fai).flatten()
 
     bqsr_input = dedup_ch
         .join(recal_table_ch, by: 0)
         .combine(interval_ch)
 
-    // This creates 50 small, calibrated BAM shards
+    // bqsr_input.view { "BQSR_INPUT => $it" }
+
+    // This creates N-number small, calibrated BAM shards
     bqsr_shards = APPLY_BQSR(bqsr_input, ref_fasta, ref_fai, ref_dict)
 
     vcf_shards = HAPLOTYPE_CALLER(
@@ -91,7 +95,7 @@ workflow {
         ref_fasta, ref_fai, ref_dict
     )
 
-    // Run metrics in the background
+    // Run metrics
     COLLECT_METRICS(dedup_ch, ref_fasta)
 
     final_vcf = MERGE_VCFS(vcf_shards.groupTuple())
@@ -100,10 +104,6 @@ workflow {
 workflow.onComplete {
     println ( workflow.success ? \
 """
-Pipeline execution summary
----------------------------
-Completed at: ${workflow.complete}
-Duration    : ${workflow.duration}
 workDir     : ${workflow.workDir}
 exit status : ${workflow.exitStatus}
 """ : """
