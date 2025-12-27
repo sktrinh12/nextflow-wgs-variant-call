@@ -1,4 +1,4 @@
-// FINAL MERGE: Combine VCF shards
+// MERGE: Combine VCF shards
 process MERGE_VCFS {
     tag "$sample_id"
     publishDir "${params.outdir}/variants", mode: 'copy'

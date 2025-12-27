@@ -1,15 +1,15 @@
 // atomic variant calling: one task per interval
 process HAPLOTYPE_CALLER {
-    tag "$sample_id - $interval"
+    tag "$sample_id - ${interval.baseName}"
 
     input:
     tuple val(sample_id), path(bam), path(bai), path(interval)
     path ref
-    path ref_idx
+    path ref_fai
     path ref_dict
 
     output:
-    tuple val(sample_id), path("shard_${interval.baseName}.vcf.gz")
+    tuple val(sample_id), path("${sample_id}.${interval.baseName}.g.vcf.gz")
 
     script:
     """
@@ -17,6 +17,7 @@ process HAPLOTYPE_CALLER {
         -R ${ref} \
         -I ${bam} \
         -L ${interval} \
-        -O shard_${interval.baseName}.vcf.gz
+        -ERC GVCF \
+        -O ${sample_id}.${interval.baseName}.g.vcf.gz
     """
 }

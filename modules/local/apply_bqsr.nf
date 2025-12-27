@@ -1,23 +1,24 @@
-// atomic sharding: apply BQSR to small genomic intervals
+// apply BQSR to whole BAM only
 process APPLY_BQSR {
-    tag "$sample_id - $interval"
+    tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(bam), path(bai), path(recal_table), path(interval)
-    path ref
-    path ref_idx
+    tuple val(sample_id), path(bam), path(bai), path(recal_table)
+    path ref_fasta
+    path ref_fai
     path ref_dict
 
     output:
-    tuple val(sample_id), path("shard_${interval.baseName}_bqsr.bam"), path("shard_${interval.baseName}_bqsr.bai"), path(interval)
+    tuple val(sample_id), path("${sample_id}.bqsr.bam"), path("${sample_id}.bqsr.bam.bai")
 
     script:
     """
     gatk ApplyBQSR \
         -I ${bam} \
-        -R ${ref} \
+        -R ${ref_fasta} \
         --bqsr-recal-file ${recal_table} \
-        -L ${interval} \
-        -O shard_${interval.baseName}_bqsr.bam
+        -O ${sample_id}.bqsr.bam
+
+    samtools index ${sample_id}.bqsr.bam
     """
 }

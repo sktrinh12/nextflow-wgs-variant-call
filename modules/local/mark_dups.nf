@@ -2,14 +2,14 @@ process MARK_DUPLICATES {
     tag "$sample_id"
 
     input:
-    tuple val(sample_id), path(bams)
+    tuple val(sample_id), path(bam)
 
     output:
     tuple val(sample_id), path("${sample_id}_dedup.bam"), path("${sample_id}_dedup.bam.bai")
 
     script:
     """
-    samtools merge -@ ${task.cpus} -u merged.unsorted.bam ${bams}
+    samtools merge -@ ${task.cpus} -u merged.unsorted.bam ${bam}
     samtools sort  -@ ${task.cpus} -o merged.bam merged.unsorted.bam
 
     gatk MarkDuplicatesSpark \
