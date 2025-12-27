@@ -1,5 +1,4 @@
 process FUNCOTATOR {
-    tag "Funcotator-${vcf.baseName}"
 
     input:
     tuple path(vcf), path(vcf_idx)

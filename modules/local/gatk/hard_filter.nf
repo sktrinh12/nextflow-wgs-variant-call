@@ -1,5 +1,4 @@
 process HARD_FILTER {
-    tag "Hard-Filter-${vcf.baseName}"
 
     input:
     tuple path(vcf), path(vcf_idx)
