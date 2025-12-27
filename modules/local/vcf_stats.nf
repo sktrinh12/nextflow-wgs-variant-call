@@ -13,6 +13,6 @@ process VCF_STATS {
     script:
     """
     bcftools stats ${vcf} > cohort.stats
-    plot-vcfstats cohort.stats -p plots
+    plot-vcfstats cohort.stats -p plots --no-PDF
     """
 }
