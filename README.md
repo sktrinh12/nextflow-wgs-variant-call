@@ -11,13 +11,38 @@ It is a modular **Nextflow DSL2** reimplementation of the original bash [script]
 - Runnable locally or on AWS Batch
 
 The workflow includes:
-- Read QC
-- Reference preparation
-- Alignment
-- Duplicate marking
-- Base quality score recalibration (BQSR)
-- Variant calling
-- Variant selection (SNPs / INDELs)
+
+ → FASTQ - Read QC
+ → BWA-MEM - Alignment
+ → MarkDuplicates - Duplicate marking
+ → BQSR - Base quality score recalibration
+ → HaplotypeCaller (-ERC GVCF) - Variant calling
+ → GenomicsDBImport
+ → GenotypeGVCFs - Variant selection (SNPs / INDELs)
+ → VQSR (or CNN / hard filters)
+
+
+```bash
+FASTQ
+ └─ BWA-MEM
+     └─ MarkDuplicates
+         └─ BQSR
+             └─ HaplotypeCaller (per-sample, sharded)
+               └─ Merge per-sample GVCFs
+                   └─ GenomicsDBImport (interval-aware, cohort)
+                       └─ GenotypeGVCFs
+                           └─ GatherVcfs (if needed)
+                               └─ FILTERING (CNN or VQSR)
+                                   └─ Funcotator
+                                       └─ FINAL VCF
+
+### FILTERING
+cohort.raw.vcf.gz
+ └─ VariantRecalibrator (SNP)
+     └─ ApplyVQSR (SNP)
+         └─ VariantRecalibrator (INDEL)
+             └─ ApplyVQSR (INDEL)
+```
 
 ---
 
@@ -88,6 +113,10 @@ docker run --rm \
   -w /ref \
   sktrinh12/bionfox-tools:1.0 \
   bwa index hg38.fa
+
+samtools faidx hg38_chr22.fa
+gatk CreateSequenceDictionary -R hg38_chr22.fa
+gatk IndexFeatureFile -I Homo_sapiens_assembly38.dbsnp138.vcf.gz
 
 # upload to s3 ref
 aws s3 cp hg38.fa.fai s3://preludetx-strinh/nextflow/wgs-variant-calling-bioinformagician/reference/ --profile rchsandbox
@@ -202,4 +231,16 @@ results/
     ├── raw_variants.vcf
     ├── raw_snps.vcf
     └── raw_indels.vcf
+
+
+/workspace/results/
+├── variants/
+│   └── cohort.final.annotated.vcf.gz
+├── vcf_stats/
+│   ├── cohort.stats
+│   └── plots/
+│       ├── depth.png
+│       ├── substitutions.png
+│       ├── indels.png
+│       └── ...
 ```
