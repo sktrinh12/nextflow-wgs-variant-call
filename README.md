@@ -4,12 +4,6 @@
 
 This pipeline performs **germline short variant discovery (SNPs and INDELs)** from **paired-end human whole-genome sequencing (WGS) data** following the **GATK4 Best Practices** [workflow](https://gatk.broadinstitute.org/hc/en-us/articles/360035535932-Germline-short-variant-discovery-SNPs-Indels-)
 
-It is a modular **Nextflow DSL2** reimplementation of the original bash [script](https://github.com/kpatel427/YouTubeTutorials/blob/main/variant_calling.sh), designed to be:
-- Reproducible
-- Scalable
-- Containerised (Docker)
-- Runnable locally or on AWS Batch
-
 The workflow includes:
 
  → FASTQ - Read QC
@@ -20,7 +14,6 @@ The workflow includes:
  → GenomicsDBImport
  → GenotypeGVCFs - Variant selection (SNPs / INDELs)
  → VQSR (or CNN / hard filters)
-
 
 ```bash
 FASTQ
