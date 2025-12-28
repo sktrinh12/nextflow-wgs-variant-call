@@ -48,3 +48,4 @@ dag*.html
 trace*
 reads/*
 reference/*
+.ipynb_checkpoints
