@@ -42,6 +42,17 @@ metadata:
 spec:
   serviceAccountName: nextflow
   restartPolicy: Never
+  initContainers:
+  - name: git-clone
+    image: alpine/git
+    command:
+    - git
+    - clone
+    - https://github.com/sktrinh12/nextflow-wgs-variant-call.git
+    - /workspace/project
+    volumeMounts:
+    - name: workspace
+      mountPath: /workspace
   containers:
   - name: nextflow
     image: nextflow/nextflow:25.10.2
@@ -52,13 +63,7 @@ spec:
     volumeMounts:
     - name: workspace
       mountPath: /workspace
-    - name: project
-      mountPath: /workspace/project
   volumes:
   - name: workspace
     persistentVolumeClaim:
       claimName: nextflow-pvc
-  - name: project
-    hostPath:
-        path: /home/spencer-trinh/Downloads/nf-training/wgs-variant-calling-bioinformagician
-        type: Directory
