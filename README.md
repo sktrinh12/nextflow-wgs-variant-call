@@ -359,7 +359,7 @@ k get po -l 'nextflow.io/app=nextflow,nextflow.io/processName=HAPLOTYPE_CALLER' 
 
 This approach above was an initial attempt to stage data into EFS from a local machine. It works, but is slow, manual, and not ideal for large datasets or reproducibility.
 
-The next section replaces this approach with a cleaner and more scalable pattern using S3 as the source of truth and letting the pipeline pull data directly from S3 instead.
+The appropriate approach is a cleaner and more scalable pattern using S3 as the source of truth and letting the pipeline pull data directly from S3 instead. Simply update the `base_path`to point to the S3 bucket, and maintain `outdir` and `workDir` using the EFS PVC in the `nextflow.config` file.
 
 Optional cleanup if the driver is no longer needed:
 
@@ -590,14 +590,23 @@ aws batch create-compute-environment \
 
 #### 6. Create a job queue
 
-Create a job queue pointing at the Spot environment:
+Create a job queue pointing at the Spot and On-demand environment:
 
 ```bash
+# spot
 aws batch create-job-queue \
   --job-queue-name nf-spot-queue \
   --state ENABLED \
   --priority 1 \
   --compute-environment-order order=1,computeEnvironment=nf-spot-ce \
+  --profile ${AWS_PROFILE_NAME}
+
+# on-demand
+aws batch create-job-queue \
+  --job-queue-name nf-ondemand-ce-queue \
+  --state ENABLED \
+  --priority 100 \
+  --compute-environment-order order=1,computeEnvironment=nf-ondemand-ce \
   --profile ${AWS_PROFILE_NAME}
 ```
 
